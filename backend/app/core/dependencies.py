@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.modules.user import crud as user_crud
 
 # トークンの受け渡し場所（URL）の定義
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 def get_current_user(
     token: str = Depends(oauth2_scheme), 
