@@ -46,7 +46,7 @@ class Task(Base):
     # タスクユーザーテーブルとの関係
     task_user_relations = relationship(
         "TaskUser_Relation", 
-        back_populates="tasks",
+        back_populates="task",
         cascade="all, delete-orphan"
     )
 
