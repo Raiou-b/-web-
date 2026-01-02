@@ -51,9 +51,8 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
-    # 将来的に、アカウントの凍結を実装するときに必要
-    # ★追加: ここで凍結チェック！
-    # if not user.is_active:
-    #     raise HTTPException(status_code=400, detail="このアカウントは凍結されています。")
+    # トークンが有効でも、DB上で凍結されていたら弾く
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Frozen user")
 
     return user
