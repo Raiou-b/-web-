@@ -9,6 +9,7 @@ venv_sql
 project_context.txt
 tmp.txt
 .dockerignore
+create_superuser*
 
 # User-specific files
 *.rsuser
