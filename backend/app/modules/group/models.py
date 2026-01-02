@@ -35,6 +35,11 @@ class Group(Base):
         back_populates="group", 
         cascade="all, delete-orphan" # グループ削除時にタスクも全消去
     )
+    task_templates = relationship(
+        "app.modules.task.models.TaskTemplate",
+        back_populates="group",
+        cascade="all, delete-orphan" 
+    )
 
 class GroupMember(Base):
     """
