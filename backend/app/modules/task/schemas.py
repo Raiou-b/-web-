@@ -108,3 +108,16 @@ class CalendarTaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# グループ横断カレンダー表示用の軽量スキーマ
+class GlobalCalendarTaskResponse(BaseModel):
+    task_id: str
+    group_name: str  # グループ名を追加
+    title: str
+    date: date
+    time_span_begin: Optional[datetime] = None
+    time_span_end: Optional[datetime] = None
+    location: Optional[str] = None
+
+    class Config:
+        from_attributes = True

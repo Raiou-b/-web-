@@ -10,9 +10,16 @@ from app.modules.user import models as user_models # ユーザー検索用
 
 from . import crud, schemas, models
 
+# 1. 既存のルーター（グループ配下用）
 router = APIRouter(
     prefix="/groups/{group_id}/tasks",
     tags=["Tasks"]
+)
+
+# 2. 自分専用ルーター (グループ横断用)
+me_router = APIRouter(
+    prefix="/my-tasks",
+    tags=["Tasks (Personal)"]
 )
 
 # --- 権限チェック関数 (依存関係回避のためローカル定義) ---
@@ -74,6 +81,20 @@ def create_task(
     new_task = crud.create_task(db, task_in, group_id)
     return new_task
 
+@me_router.get("/", response_model=List[schemas.GlobalCalendarTaskResponse])
+def read_my_global_tasks(
+    year: int = Query(..., description="対象年 (例: 2026)"),
+    month: int = Query(..., ge=1, le=12, description="対象月 (1-12)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    【グループ横断】
+    自分が「担当」または「参加」しているタスクを、グループに関係なくまとめて取得します。
+    指定した年・月でフィルタして取得します。
+    """
+    return crud.get_my_global_tasks(db, current_user.user_id, year, month)
+
 @router.get("/", response_model=List[schemas.TaskResponse])
 def read_tasks(
     group_id: str,
@@ -84,7 +105,7 @@ def read_tasks(
     limit: int = 30,
     from_date: Optional[str] = Query(None, description="YYYY-MM-DD形式。指定日以降のタスク"),
     to_date: Optional[str] = Query(None, description="YYYY-MM-DD形式。指定日以前のタスク"),
-    filter_type: Optional[str] = Query(None, description="my_related(担当or参加), undecided(未定回答), recent_created(最近作成された順)"),
+    filter_type: Optional[schemas.TaskFilterType] = Query(None, description="my_related(担当or参加), undecided(未定回答), recent_created(最近作成された順)"),
 ):
     check_group_member(db, group_id, current_user.user_id)
 

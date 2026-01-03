@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Optional
 from datetime import datetime
 
+from app.modules.group import models as group_models
 from . import models, schemas
 
 # --- Task本体 ---
@@ -201,9 +202,38 @@ def get_calendar_tasks(db: Session, group_id: str, year: int, month: int):
         .order_by(models.Task.date.asc())\
         .all()
 
+# --- グループ横断で自分のタスクを軽量取得 ---
+def get_my_global_tasks(db: Session, user_id: str, year: int, month: int):
+    """
+    所属する全グループの中から、「担当」または「参加」しているタスクを取得。
+    指定された年・月のデータを全件返す。
+    必要なカラム（ID, グループ名, タイトル, 日時, 場所）のみを返す。
+    """
+    return db.query(
+            models.Task.task_id,
+            group_models.Group.name.label("group_name"), # Groupテーブルの名前を取得
+            models.Task.title,
+            models.Task.date,
+            models.Task.time_span_begin,
+            models.Task.time_span_end,
+            models.Task.location
+        )\
+        .select_from(models.Task)\
+        .join(group_models.Group, models.Task.group_id == group_models.Group.group_id)\
+        .join(models.TaskUser_Relation, models.Task.task_id == models.TaskUser_Relation.task_id)\
+        .filter(models.TaskUser_Relation.user_id == user_id)\
+        .filter(
+            or_(
+                models.TaskUser_Relation.is_assigned == True,
+                models.TaskUser_Relation.reaction == "join"
+            )
+        )\
+        .filter(extract('year', models.Task.date) == year)\
+        .filter(extract('month', models.Task.date) == month)\
+        .order_by(models.Task.date.asc())\
+        .all()
 
 # --- タスクテンプレート用CRUD ---
-
 def create_template(db: Session, template_in: schemas.TaskTemplateCreate, group_id: str):
     db_template = models.TaskTemplate(
         **template_in.model_dump(),
