@@ -1,12 +1,15 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+
 from app.modules.user.models import User
 from app.modules.group import crud as group_crud
+from app.modules.group import models as group_models
 from app.modules.user import models as user_models # ユーザー検索用
+from app.modules.chat import service as slack_service # Slack連携
 
 from . import crud, schemas
 
@@ -69,6 +72,7 @@ def get_user_by_identifier(db: Session, identifier: str) -> User:
 def create_task(
     group_id: str,
     task_in: schemas.TaskCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -79,6 +83,23 @@ def create_task(
     check_group_admin_permission(current_user, group_id, db)    
 
     new_task = crud.create_task(db, task_in, group_id)
+    
+    # Slack通知処理
+    # グループ情報を取得 (slackトークンを取得するため)
+    group = db.query(group_models.Group).filter(group_models.Group.group_id == group_id).first()
+    
+    if group and group.slack_bot_token and group.slack_channel_id:
+        background_tasks.add_task(
+            slack_service.notify_new_task,
+            token=group.slack_bot_token,         # DBから取得したトークン
+            channel_id=group.slack_channel_id,   # DBから取得したチャンネルID
+            task_title=new_task.title,
+            task_date=str(new_task.date),
+            start_time=str(new_task.start_time) if new_task.start_time else None,
+            end_time=str(new_task.end_time) if new_task.end_time else None,
+            is_task=new_task.is_task
+        )
+
     return new_task
 
 @me_router.get("/", response_model=List[schemas.GlobalCalendarTaskResponse])
