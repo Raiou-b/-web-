@@ -16,11 +16,13 @@ class Group(Base):
     # UUIDを主キーとする
     group_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     
-    # 修正: name -> group_name
+    # グループ名
     group_name = Column(String(100), nullable=False, index=True, comment="グループ名")
     
-    # 修正: description は削除しました
-    
+    # 各グループごとに個別のBotトークンとチャンネルIDを持ちます
+    slack_bot_token = Column(String(255), nullable=True) # そのグループ専用のトークン
+    slack_channel_id = Column(String(255), nullable=True) # 通知先のチャンネルID
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
