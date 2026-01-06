@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
@@ -31,9 +32,18 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        """SQLAlchemy用の接続文字列を生成"""
-        return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        # Vercel等の環境変数からURLを取得
+        url = os.getenv("POSTGRES_URL") 
+        
+        # ローカル開発などで .env の値を使う場合のフォールバック
+        if not url:
+            url = f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
+        # 【重要】SQLAlchemy用に 'postgres://' を 'postgresql://' に置換
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+            
+        return url
     class Config:
         # .envファイルを読みに行く設定
         env_file = str(BASE_DIR / ".env")
