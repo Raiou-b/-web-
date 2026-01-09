@@ -156,24 +156,83 @@ const GroupCalendarPage = () => {
       info.revert();
       return;
     }
+    
+    // 誤操作防止の確認
     if (!window.confirm(`「${info.event.title}」の日程を変更しますか？`)) {
       info.revert();
       return;
     }
-    try {
-      const newDate = info.event.start.toISOString().split('T')[0];
-      const newStart = info.event.start ? info.event.start.toISOString() : null;
-      const newEnd = info.event.end ? info.event.end.toISOString() : null;
 
-      // 部分更新なので日付のみ送信
-      await api.put(`/groups/${groupId}/tasks/${info.event.id}`, {
-        date: newDate,
-        time_span_begin: newStart,
-        time_span_end: newEnd
-      });
+    try {
+      // 1. 新しい日程情報の抽出
+      // FullCalendarのイベントオブジェクトから日時を取得
+      const { start, end, allDay } = info.event;
+      
+      // ISO文字列生成 (YYYY-MM-DDTHH:mm:ss)
+      const newStartISO = start ? start.toISOString() : null;
+      const newEndISO = end ? end.toISOString() : null;
+      
+      // YYYY-MM-DD形式
+      const newDateStr = start ? start.toISOString().split('T')[0] : null;
+
+      // 2. 既存データの引継ぎ
+      // PUTリクエストなので、変更しないフィールドも全て送信しないと消える可能性がある
+      const props = info.event.extendedProps;
+      
+      const payload = {
+        title: info.event.title,
+        location: props.location || "",
+        description: props.description || "",
+        
+        // ステータス等の維持
+        is_task: props.is_task !== undefined ? props.is_task : true,
+        status: props.status || "未着手",
+        
+        // 日時情報の構築
+        time_span_begin: null,
+        time_span_end: null,
+        date: undefined
+      };
+
+      // 3. ロジック分岐: 終日(AllDay)か、時間指定か
+      if (allDay) {
+        // --- 終日スロットへドロップした場合 ---
+        // 時間情報はNullにし、dateを設定する
+        payload.date = newDateStr;
+        payload.time_span_begin = null;
+        payload.time_span_end = null;
+      } else {
+        // --- 時間スロットへドロップした場合 ---
+        // dateをundefined(送信しない)にし、時間を設定する
+        // ※バックエンドの仕様に合わせて undefined を使う
+        payload.date = undefined;
+        payload.time_span_begin = newStartISO;
+        payload.time_span_end = newEndISO;
+      }
+      
+      // undefinedのキーを削除（念のため）
+      Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+
+      console.log("Drop Update Payload:", payload);
+
+      // 4. API送信
+      await api.put(`/groups/${groupId}/tasks/${info.event.id}`, payload);
+      
+      // 成功したら見た目はFullCalendarが自動更新済みなのでそのままでOK
+      // ただし念のため裏で再取得しても良い
+      // fetchTasks(); 
+
     } catch (error) {
       console.error("Update failed:", error);
-      alert("更新に失敗しました");
+      
+      // エラー詳細の表示
+      let errorMsg = "更新に失敗しました";
+      if (error.response?.data?.detail) {
+        errorMsg += `\n${JSON.stringify(error.response.data.detail)}`;
+      }
+      alert(errorMsg);
+      
+      // 失敗した場合はカレンダー上の表示を元に戻す
       info.revert();
     }
   };

@@ -17,37 +17,42 @@ const GroupMembersPage = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. 自分の情報 (権限チェック用)
-      // 2. メンバー一覧 (accepted_only=true)
-      // 3. 申請一覧 (accepted_only=false) ※管理者のみ閲覧前提だが、一旦取得してみる
-      const [meRes, membersRes, requestsRes] = await Promise.all([
-        api.get('/me'), // 修正: /users/me ではなく /me を使用
-        api.get(`/groups/${groupId}/members`, { params: { accepted_only: true } }),
-        api.get(`/groups/${groupId}/members`, { params: { accepted_only: false } })
+      // 1. まず「自分の情報」と「確定済みメンバー」を取得 (これらは一般人でも失敗しないはず)
+      const [meRes, membersRes] = await Promise.all([
+        api.get('/me'),
+        api.get(`/groups/${groupId}/members`, { params: { accepted_only: true } })
       ]);
 
       const myUser = meRes.data;
       const membersData = membersRes.data;
-      
-      // ▼ 管理者判定ロジック
+
+      // ▼ 管理者判定
       const myMembership = membersData.find(m => {
-        // フラット構造(m.user_id) か ネスト構造(m.user.user_id) か両対応
         if (m.user_id === myUser.user_id) return true;
         if (m.user && m.user.user_id === myUser.user_id) return true;
         return false;
       });
       const isRepresentative = myMembership && myMembership.is_representative === true;
       setIsAdmin(isRepresentative);
-
-      // メンバーリスト更新
       setMembers(membersData);
 
-      // 承認待ちリスト更新 (APIが全件返す場合に備えて !accepted でフィルタリング)
-      const pendingRequests = requestsRes.data.filter(m => !m.accepted);
+      // 2. 承認待ちリスト取得 (管理者の場合のみ、または失敗しても無視する形で実行)
+      // 一般メンバーが叩くと 403 Forbidden になる可能性があるため、分離して try-catch する
+      let pendingRequests = [];
+      if (isRepresentative) {
+        try {
+          const requestsRes = await api.get(`/groups/${groupId}/members`, { params: { accepted_only: false } });
+          pendingRequests = requestsRes.data.filter(m => !m.accepted);
+        } catch (reqError) {
+          console.warn("Requests fetch failed (likely not admin):", reqError);
+          // 失敗しても空配列のまま進む
+        }
+      }
       setRequests(pendingRequests);
 
     } catch (error) {
       console.error("Fetch members failed:", error);
+      alert("メンバー情報の取得に失敗しました");
     } finally {
       setLoading(false);
     }
